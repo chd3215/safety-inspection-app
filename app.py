@@ -7,9 +7,21 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 import tempfile
 import os
 from datetime import datetime
+
+# -----------------------------
+# 한글 폰트 등록
+# -----------------------------
+FONT_PATH = "MalgunGothic.ttf"
+
+if not os.path.exists(FONT_PATH):
+    raise FileNotFoundError("MalgunGothic.ttf 파일이 프로젝트 루트에 없습니다.")
+
+pdfmetrics.registerFont(TTFont("Malgun", FONT_PATH))
 
 # -----------------------------
 # PDF 생성 함수
@@ -36,6 +48,7 @@ def create_inspection_pdf(
     title_style = ParagraphStyle(
         "title",
         parent=styles["Title"],
+        fontName="Malgun",
         fontSize=18,
         alignment=1,
         spaceAfter=12
@@ -44,9 +57,14 @@ def create_inspection_pdf(
     info_style = ParagraphStyle(
         "info",
         parent=styles["Normal"],
+        fontName="Malgun",
         fontSize=10,
         spaceAfter=6
     )
+
+    table_style_font = [
+        ("FONT", (0, 0), (-1, -1), "Malgun")
+    ]
 
     story = []
 
@@ -65,15 +83,16 @@ def create_inspection_pdf(
         table_data,
         colWidths=[50, 120, 60, 200]
     )
+
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("FONT", (0, 0), (-1, -1), "Malgun"),
     ]))
 
     story.append(table)
@@ -81,8 +100,12 @@ def create_inspection_pdf(
 
     # 사진
     if photo_files:
-        story.append(Paragraph("현장 사진", styles["Heading2"]))
-        story.append(Spacer(1, 12))
+        story.append(Paragraph("현장 사진", ParagraphStyle(
+            "photo_title",
+            fontName="Malgun",
+            fontSize=14,
+            spaceAfter=12
+        )))
 
         for idx, photo in enumerate(photo_files):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
@@ -101,7 +124,6 @@ def create_inspection_pdf(
 
     doc.build(story)
 
-
 # -----------------------------
 # Streamlit UI
 # -----------------------------
@@ -118,13 +140,11 @@ status = st.selectbox("상태", ["양호", "미흡"])
 note = st.text_input("비고")
 
 if "rows" not in st.session_state:
-    st.session_state.rows = [
-        ["번호", "점검항목", "상태", "비고"]
-    ]
+    st.session_state.rows = [["번호", "점검항목", "상태", "비고"]]
 
 if st.button("점검 항목 추가"):
-    number = len(st.session_state.rows)
-    st.session_state.rows.append([str(number), item, status, note])
+    num = len(st.session_state.rows)
+    st.session_state.rows.append([str(num), item, status, note])
 
 st.table(st.session_state.rows)
 
@@ -145,20 +165,18 @@ if st.button("PDF 생성"):
         output_path = os.path.join(tempfile.gettempdir(), filename)
 
         create_inspection_pdf(
-            output_path=output_path,
-            site_name=site_name,
-            check_date=check_date.strftime("%Y-%m-%d"),
-            inspector=inspector,
-            table_data=st.session_state.rows,
-            photo_files=photos
+            output_path,
+            site_name,
+            check_date.strftime("%Y-%m-%d"),
+            inspector,
+            st.session_state.rows,
+            photos
         )
 
         with open(output_path, "rb") as f:
             st.download_button(
-                label="📥 PDF 다운로드",
-                data=f,
+                "📥 PDF 다운로드",
+                f,
                 file_name=filename,
                 mime="application/pdf"
             )
-
-
