@@ -16,7 +16,7 @@ from datetime import datetime
 # -----------------------------
 # 한글 폰트 등록 (배포용)
 # -----------------------------
-FONT_PATH = "NotoSansKR-vr.ttf"
+FONT_PATH = "NotoSansKR-Regular.ttf"
 
 pdfmetrics.registerFont(TTFont("Korean", FONT_PATH))
 
