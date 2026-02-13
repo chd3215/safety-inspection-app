@@ -1,3 +1,4 @@
+import streamlit as st
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Table, TableStyle,
     Spacer, Image, PageBreak
@@ -6,20 +7,21 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
+import tempfile
 import os
+from datetime import datetime
 
-
+# -----------------------------
+# PDF 생성 함수
+# -----------------------------
 def create_inspection_pdf(
     output_path,
     site_name,
     check_date,
     inspector,
     table_data,
-    photo_paths
+    photo_files
 ):
-    # -----------------------------
-    # PDF 기본 설정
-    # -----------------------------
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
@@ -35,7 +37,7 @@ def create_inspection_pdf(
         "title",
         parent=styles["Title"],
         fontSize=18,
-        alignment=1,  # 가운데
+        alignment=1,
         spaceAfter=12
     )
 
@@ -48,28 +50,21 @@ def create_inspection_pdf(
 
     story = []
 
-    # -----------------------------
     # 제목
-    # -----------------------------
     story.append(Paragraph("현장 안전점검 보고서", title_style))
     story.append(Spacer(1, 12))
 
-    # -----------------------------
     # 기본 정보
-    # -----------------------------
     story.append(Paragraph(f"현장명: {site_name}", info_style))
     story.append(Paragraph(f"점검일자: {check_date}", info_style))
     story.append(Paragraph(f"점검자: {inspector}", info_style))
     story.append(Spacer(1, 16))
 
-    # -----------------------------
-    # 점검 결과 표
-    # -----------------------------
+    # 점검 표
     table = Table(
         table_data,
-        colWidths=[60, 80, 60, 200]  # 모바일 기준 안정 폭
+        colWidths=[50, 120, 60, 200]
     )
-
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -84,32 +79,86 @@ def create_inspection_pdf(
     story.append(table)
     story.append(Spacer(1, 20))
 
-    # -----------------------------
-    # 사진 섹션
-    # -----------------------------
-    if photo_paths:
+    # 사진
+    if photo_files:
         story.append(Paragraph("현장 사진", styles["Heading2"]))
         story.append(Spacer(1, 12))
 
-        for idx, photo in enumerate(photo_paths):
-            if not os.path.exists(photo):
-                continue
+        for idx, photo in enumerate(photo_files):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(photo.read())
+                img_path = tmp.name
 
-            img = Image(photo)
-
-            # 📱 모바일 기준 안전 사이즈
+            img = Image(img_path)
             img.drawWidth = 120 * mm
             img.drawHeight = img.drawWidth * 0.75
 
             story.append(img)
             story.append(Spacer(1, 12))
 
-            # 사진 2장마다 페이지 분리 (가독성)
             if (idx + 1) % 2 == 0:
                 story.append(PageBreak())
 
-    # -----------------------------
-    # PDF 생성
-    # -----------------------------
     doc.build(story)
+
+
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.set_page_config(page_title="현장 안전점검", layout="centered")
+st.title("📋 현장 안전점검 앱")
+
+site_name = st.text_input("현장명")
+inspector = st.text_input("점검자")
+check_date = st.date_input("점검일자")
+
+st.subheader("점검 결과")
+item = st.text_input("점검 항목")
+status = st.selectbox("상태", ["양호", "미흡"])
+note = st.text_input("비고")
+
+if "rows" not in st.session_state:
+    st.session_state.rows = [
+        ["번호", "점검항목", "상태", "비고"]
+    ]
+
+if st.button("점검 항목 추가"):
+    number = len(st.session_state.rows)
+    st.session_state.rows.append([str(number), item, status, note])
+
+st.table(st.session_state.rows)
+
+st.subheader("현장 사진 업로드")
+photos = st.file_uploader(
+    "사진 선택 (여러 장 가능)",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True
+)
+
+st.divider()
+
+if st.button("PDF 생성"):
+    if not site_name or not inspector:
+        st.error("현장명과 점검자를 입력하세요.")
+    else:
+        filename = f"{site_name}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+        output_path = os.path.join(tempfile.gettempdir(), filename)
+
+        create_inspection_pdf(
+            output_path=output_path,
+            site_name=site_name,
+            check_date=check_date.strftime("%Y-%m-%d"),
+            inspector=inspector,
+            table_data=st.session_state.rows,
+            photo_files=photos
+        )
+
+        with open(output_path, "rb") as f:
+            st.download_button(
+                label="📥 PDF 다운로드",
+                data=f,
+                file_name=filename,
+                mime="application/pdf"
+            )
+
 
