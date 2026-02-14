@@ -15,13 +15,13 @@ import os
 from datetime import datetime
 
 # -----------------------------
-# 한글 폰트
+# 한글 폰트 (배포용)
 # -----------------------------
 FONT_PATH = "NotoSansKR-Regular.ttf"
 pdfmetrics.registerFont(TTFont("Korean", FONT_PATH))
 
 # -----------------------------
-# PDF 생성
+# PDF 생성 함수
 # -----------------------------
 def create_pdf(output_path, site, date, inspector, table_data, photos):
     doc = SimpleDocTemplate(
@@ -43,13 +43,15 @@ def create_pdf(output_path, site, date, inspector, table_data, photos):
 
     story = []
 
+    # 제목
     story.append(Paragraph("현장 안전점검 보고서", title))
     story.append(Paragraph(f"현장명: {site}", normal))
     story.append(Paragraph(f"점검일자: {date}", normal))
     story.append(Paragraph(f"점검자: {inspector}", normal))
     story.append(Spacer(1, 10))
 
-    table = Table(table_data, colWidths=[30, 140, 60, 200])
+    # 점검표
+    table = Table(table_data, colWidths=[30, 150, 60, 180])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
         ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
@@ -59,13 +61,14 @@ def create_pdf(output_path, site, date, inspector, table_data, photos):
     story.append(table)
     story.append(PageBreak())
 
+    # 사진 (1장 = 1페이지)
     for p in photos:
         img = Image(BytesIO(p["file"].read()))
-        img.drawWidth = 150 * mm
+        img.drawWidth = 160 * mm
         img.drawHeight = 100 * mm
 
         story.append(img)
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 8))
         story.append(Paragraph(f"위치: {p['location']}", normal))
         story.append(Paragraph(f"위험요인: {p['risk']}", normal))
         story.append(Paragraph(f"조치사항: {p['action']}", normal))
@@ -83,8 +86,11 @@ site = st.text_input("현장명")
 inspector = st.text_input("점검자")
 date = st.date_input("점검일자")
 
-# 점검 표
+# -----------------------------
+# 점검표
+# -----------------------------
 st.subheader("점검 항목")
+
 if "rows" not in st.session_state:
     st.session_state.rows = [["번호", "점검항목", "상태", "비고"]]
 
@@ -100,7 +106,7 @@ if st.button("항목 추가"):
 st.table(st.session_state.rows)
 
 # -----------------------------
-# 사진 + 선택형 UI
+# 사진 + 항상 보이는 선택형 UI
 # -----------------------------
 st.subheader("📷 현장 사진")
 
@@ -115,18 +121,35 @@ ACTION_OPTIONS = [
 
 uploaded = st.file_uploader(
     "사진 업로드 (여러 장 가능)",
-    type=["jpg", "png", "jpeg"],
+    type=["jpg", "jpeg", "png"],
     accept_multiple_files=True
 )
 
 photo_entries = []
 
 if uploaded:
+    st.info("사진마다 아래 항목을 바로 선택하세요")
+
     for i, f in enumerate(uploaded):
-        with st.expander(f"사진 {i+1}: {f.name}"):
-            location = st.selectbox("위치", LOCATION_OPTIONS, key=f"loc{i}")
-            risk = st.multiselect("위험요인", RISK_OPTIONS, key=f"risk{i}")
-            action = st.selectbox("조치사항", ACTION_OPTIONS, key=f"act{i}")
+        st.markdown(f"### 📸 사진 {i+1}")
+
+        location = st.selectbox(
+            "위치",
+            LOCATION_OPTIONS,
+            key=f"loc_{i}"
+        )
+
+        risk = st.multiselect(
+            "위험요인",
+            RISK_OPTIONS,
+            key=f"risk_{i}"
+        )
+
+        action = st.selectbox(
+            "조치사항",
+            ACTION_OPTIONS,
+            key=f"action_{i}"
+        )
 
         photo_entries.append({
             "file": f,
@@ -135,7 +158,7 @@ if uploaded:
             "action": action
         })
 
-st.divider()
+        st.divider()
 
 # -----------------------------
 # PDF 생성
@@ -160,4 +183,5 @@ if st.button("📄 PDF 생성"):
             file_name=filename,
             mime="application/pdf"
         )
+
 
