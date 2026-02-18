@@ -80,7 +80,7 @@ def create_pdf(output_path, site, date, inspector, table_data, photos):
 # Streamlit UI
 # -----------------------------
 st.set_page_config(page_title="현장 안전점검", layout="centered")
-st.title("📋 현장 안전점검 앱")
+st.title("##📋 현장 안전점검 앱")
 
 site = st.text_input("현장명")
 inspector = st.text_input("점검자")
